@@ -4,7 +4,7 @@ from typing import List
 from dotenv import load_dotenv
 load_dotenv()
 
-# Workflow configuration
+# Workflow configuration - defines the flow of data through different services
 WORKFLOW_CONFIG = {
     "peertube": {
         "steps": [
@@ -12,6 +12,17 @@ WORKFLOW_CONFIG = {
             {"topic": "whisper", "response_topic": "whisper_response"},
             {"topic": "generic_translate", "response_topic": "generic_translate_response"},
             {"topic": "peertube_transcribe_and_translate", "response_topic": "peertube_transcribe_and_translate_response"}
+        ]
+    },
+    "general": {
+        "steps": [
+            {"topic": "whisper", "response_topic": "whisper_response"},
+            {"topic": "generic_translate", "response_topic": "generic_translate_response"}
+        ]
+    },
+    "translation_only": {
+        "steps": [
+            {"topic": "generic_translate", "response_topic": "generic_translate_response"}
         ]
     }
 }
@@ -27,7 +38,7 @@ class Settings(BaseSettings):
     # Kafka settings
     KAFKA_BOOTSTRAP_SERVERS: str = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka-1:9092,kafka-2:9092")
     
-    # Topics
+    # Topics - these are now just for reference, actual topics come from WORKFLOW_CONFIG
     TOPIC_WHISPER: str = "whisper"
     TOPIC_WHISPER_RESPONSE: str = "whisper_response"
     TOPIC_GENERIC_TRANSLATE: str = "generic_translate"

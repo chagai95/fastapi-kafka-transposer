@@ -10,8 +10,7 @@ from app.schemas.request_schemas import (
     TranslateRequest,
     JobStatusResponse
 )
-from app.services.transcription import start_transcription
-from app.services.translation import translate_text
+from app.services.workflow_service import workflow_service
 from app.config import settings
 
 import logging
@@ -22,12 +21,10 @@ router = APIRouter()
 @router.post("/transcribe-and-translate/video")
 async def transcribe_and_translate_video(
     request: TranscribeVideoRequest,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
     """Endpoint to transcribe and translate a PeerTube video"""
     source_id = str(uuid.uuid4())
-    logger.info(f"=== ABOUT TO START BACKGROUND TASK for job {source_id} ===")
     
     # Create new job
     job = TranscriptionJob(
@@ -42,15 +39,14 @@ async def transcribe_and_translate_video(
     db.add(job)
     await db.commit()
     
-    # Start transcription synchronously (no background task)
-    await start_transcription(db, job)
+    # Start workflow
+    await workflow_service.start_job(db, job)
     
     return {"source_id": source_id}
 
 @router.post("/transcribe-and-translate")
 async def transcribe_and_translate_general(
     request: GeneralTranscribeRequest,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
     """Endpoint to transcribe and translate a general URL"""
@@ -59,8 +55,8 @@ async def transcribe_and_translate_general(
     # Create new job
     job = TranscriptionJob(
         source_id=source_id,
-        source_type="general",
-        url=request.url,
+        source_type="general",  # You'll need to add "general" to WORKFLOW_CONFIG
+        url=str(request.url),
         language=request.language,
         source_status=JobStatus.IN_PROGRESS
     )
@@ -68,15 +64,14 @@ async def transcribe_and_translate_general(
     db.add(job)
     await db.commit()
     
-    # Start transcription in background
-    background_tasks.add_task(start_transcription, db, job)
+    # Start workflow
+    await workflow_service.start_job(db, job)
     
     return {"source_id": source_id}
 
 @router.post("/translate")
 async def translate(
-    request: TranslateRequest,
-    background_tasks: BackgroundTasks
+    request: TranslateRequest
 ):
     """Endpoint to translate text directly"""
     # Validate languages
@@ -92,8 +87,25 @@ async def translate(
         if lang not in settings.SUPPORTED_LANGUAGES:
             raise HTTPException(status_code=400, detail=f"Unsupported target language: {lang}")
     
-    # Start translation process
-    source_id = await translate_text(request.input, request.source_language_id, target_langs)
+    # Create a translation-only job
+    source_id = str(uuid.uuid4())
+    
+    async with get_db() as db:
+        job = TranscriptionJob(
+            source_id=source_id,
+            source_type="translation_only",  # You'll need to add this to WORKFLOW_CONFIG
+            url="direct_text",
+            language=request.source_language_id,
+            target_language_ids=target_langs,
+            transcription=request.input,  # Set the input text as transcription
+            source_status=JobStatus.IN_PROGRESS
+        )
+        
+        db.add(job)
+        await db.commit()
+        
+        # Start workflow
+        await workflow_service.start_job(db, job)
     
     return {"source_id": source_id}
 

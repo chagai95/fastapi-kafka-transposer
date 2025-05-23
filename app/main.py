@@ -5,8 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.router import router
 from app.database.db import create_tables
 from app.services.kafka_service import kafka_service
-from app.services.transcription import handle_transcription_response
-from app.services.translation import handle_translation_response
+from app.services.workflow_service import workflow_service
 from app.config import settings
 
 # Configure logging
@@ -35,6 +34,12 @@ app.add_middleware(
 # Include API router
 app.include_router(router)
 
+async def create_response_handler(topic: str):
+    """Create a response handler for a specific topic"""
+    async def handler(data: dict):
+        await workflow_service.process_response(topic, data)
+    return handler
+
 @app.on_event("startup")
 async def startup_event():
     # Create database tables
@@ -44,19 +49,16 @@ async def startup_event():
     # Start Kafka producer
     await kafka_service.start_producer()
     
-    # Register Kafka handlers
-    await kafka_service.register_consumer(
-        settings.TOPIC_WHISPER_RESPONSE,
-        handle_transcription_response
-    )
-    await kafka_service.register_consumer(
-        settings.TOPIC_GENERIC_TRANSLATE_RESPONSE,
-        handle_translation_response
-    )
+    # Dynamically register handlers for all response topics in workflows
+    response_topics = workflow_service.get_response_topics()
+    logger.info(f"Found response topics: {response_topics}")
     
-    # Start Kafka consumers
-    await kafka_service.start_consumer(settings.TOPIC_WHISPER_RESPONSE)
-    await kafka_service.start_consumer(settings.TOPIC_GENERIC_TRANSLATE_RESPONSE)
+    for topic in response_topics:
+        # Create and register handler for this topic
+        handler = await create_response_handler(topic)
+        await kafka_service.register_consumer(topic, handler)
+        await kafka_service.start_consumer(topic)
+        logger.info(f"Registered consumer for topic: {topic}")
     
     logger.info("Application started successfully")
 
