@@ -24,6 +24,7 @@ class TranscriptionJob(Base):
     video_id = Column(String, nullable=True)  # For PeerTube videos
     language = Column(String, nullable=True)  # Source language
     source_status = Column(String, default=JobStatus.IN_PROGRESS)
+    workflow_step = Column(String, default="0")  # Track which step in workflow we're on
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
@@ -31,6 +32,7 @@ class TranscriptionJob(Base):
     transcription = Column(JSON, nullable=True)
     translations = Column(JSON, nullable=True)  # Store all translations as JSON
     target_language_ids = Column(ARRAY(String), nullable=True)  # Target languages
+
     
     def to_dict(self):
         return {

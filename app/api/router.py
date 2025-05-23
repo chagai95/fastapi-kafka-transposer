@@ -14,6 +14,9 @@ from app.services.transcription import start_transcription
 from app.services.translation import translate_text
 from app.config import settings
 
+import logging
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 @router.post("/transcribe-and-translate/video")
@@ -24,13 +27,14 @@ async def transcribe_and_translate_video(
 ):
     """Endpoint to transcribe and translate a PeerTube video"""
     source_id = str(uuid.uuid4())
+    logger.info(f"=== ABOUT TO START BACKGROUND TASK for job {source_id} ===")
     
     # Create new job
     job = TranscriptionJob(
         source_id=source_id,
         source_type="peertube",
-        url=str(request.url),  # Convert HttpUrl to string
-        video_id=request.videoId,  # Changed from request.video_id
+        url=str(request.url),
+        video_id=request.videoId,
         language=request.language,
         source_status=JobStatus.IN_PROGRESS
     )
@@ -38,8 +42,8 @@ async def transcribe_and_translate_video(
     db.add(job)
     await db.commit()
     
-    # Start transcription in background
-    background_tasks.add_task(start_transcription, db, job)
+    # Start transcription synchronously (no background task)
+    await start_transcription(db, job)
     
     return {"source_id": source_id}
 

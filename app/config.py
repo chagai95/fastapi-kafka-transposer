@@ -4,7 +4,23 @@ from typing import List
 from dotenv import load_dotenv
 load_dotenv()
 
+# Workflow configuration
+WORKFLOW_CONFIG = {
+    "peertube": {
+        "steps": [
+            {"topic": "peertube_transcribe_and_translate", "response_topic": "peertube_transcribe_and_translate_response"},
+            {"topic": "whisper", "response_topic": "whisper_response"},
+            {"topic": "generic_translate", "response_topic": "generic_translate_response"},
+            {"topic": "peertube_transcribe_and_translate", "response_topic": "peertube_transcribe_and_translate_response"}
+        ]
+    }
+}
+
 class Settings(BaseSettings):
+
+    # Workflow settings
+    WORKFLOW_CONFIG: dict = WORKFLOW_CONFIG
+
     # Database settings
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://user:password@postgres:5432/transcription_db")
         

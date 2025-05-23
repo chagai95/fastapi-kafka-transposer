@@ -56,9 +56,10 @@ async def translate_text(text: str, source_lang: str, target_langs: list):
     logger.info(f"Sent direct translation request: {source_id}")
     
     return source_id
-    
+ 
 async def handle_translation_response(data: dict):
     """Handle response from the translation service"""
+    logger.info(f"=== TRANSLATION RESPONSE RECEIVED: {data} ===")
     async with async_session() as session:
         source_id = data.get("source_id")
         if not source_id:
@@ -76,22 +77,10 @@ async def handle_translation_response(data: dict):
         
         # Update job with translations
         job.translations = data.get("translations", {})
-        job.source_status = JobStatus.DONE
-        
-        # If this is a peertube job, send completion message to peertube topic
-        if job.source_type == "peertube":
-            peertube_message = {
-                "source_id": job.source_id,
-                "video_id": job.video_id,
-                "transcription": job.transcription,
-                "translations": job.translations
-            }
-            breakpoint()
-            await kafka_service.send_message(
-                settings.TOPIC_PEERTUBE_TRANSCRIBE_TRANSLATE, 
-                peertube_message,
-                key=job.source_id
-            )
-        
         await session.commit()
-        logger.info(f"Updated job with translations: {source_id}")
+        
+        # Import and use workflow progression
+        from app.services.transcription import progress_workflow
+        await progress_workflow(session, job, data)
+        
+        logger.info(f"Updated job with translations and progressed workflow: {source_id}")
