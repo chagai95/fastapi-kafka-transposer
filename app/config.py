@@ -8,10 +8,10 @@ load_dotenv()
 WORKFLOW_CONFIG = {
     "peertube": {
         "steps": [
-            {"topic": "peertube_transcribe_and_translate", "response_topic": "peertube_transcribe_and_translate_response"},
-            {"topic": "whisper", "response_topic": "whisper_response"},
-            {"topic": "generic_translate", "response_topic": "generic_translate_response"},
-            {"topic": "peertube_transcribe_and_translate", "response_topic": "peertube_transcribe_and_translate_response"}
+            {"topic": "chagai_peertube_transcribe_and_translate", "response_topic": "chagai_peertube_transcribe_and_translate_response"},
+            {"topic": "chagai_whisper", "response_topic": "chagai_whisper_response"},
+            {"topic": "chagai_generic_translate", "response_topic": "chagai_generic_translate_response"},
+            {"topic": "chagai_peertube_transcribe_and_translate", "response_topic": "chagai_peertube_transcribe_and_translate_response"}
         ]
     },
     "general": {
