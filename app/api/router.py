@@ -32,6 +32,7 @@ async def transcribe_and_translate_video(
         source_type="peertube",
         url=str(request.url),
         video_id=request.videoId,
+        peertube_basedomain=request.peertubeInstanceBaseDomain,  # Added this line
         language=request.language,
         source_status=JobStatus.IN_PROGRESS
     )

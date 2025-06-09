@@ -22,6 +22,7 @@ class TranscriptionJob(Base):
     source_type = Column(String, nullable=False)
     url = Column(String, nullable=False)
     video_id = Column(String, nullable=True)  # For PeerTube videos
+    peertube_basedomain = Column(String, nullable=True)  # Added PeerTube base domain
     language = Column(String, nullable=True)  # Source language
     source_status = Column(String, default=JobStatus.IN_PROGRESS)
     workflow_step = Column(String, default="0")  # Track which step in workflow we're on
@@ -40,6 +41,7 @@ class TranscriptionJob(Base):
             "source_type": self.source_type,
             "url": self.url,
             "video_id": self.video_id,
+            "peertube_basedomain": self.peertube_basedomain,
             "language": self.language,
             "source_status": self.source_status,
             "transcription": self.transcription,

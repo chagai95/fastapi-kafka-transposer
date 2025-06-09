@@ -101,19 +101,10 @@ class WorkflowService:
         step = workflow["steps"][step_index]
         topic = step["topic"]
         
-        # Prepare message with all job data
+        # Only send the source_id - services can query the database for full data
         message = {
-            "source_id": job.source_id,
-            "url": job.url,
-            "language": job.language,
-            "video_id": job.video_id,
-            "transcription": job.transcription,
-            "translations": job.translations,
-            "target_language_ids": job.target_language_ids
+            "source_id": job.source_id
         }
-        
-        # Remove None values to keep message clean
-        message = {k: v for k, v in message.items() if v is not None}
         
         await kafka_service.send_message(topic, message, key=job.source_id)
         logger.info(f"Sent job {job.source_id} to topic '{topic}' (step {step_index})")
