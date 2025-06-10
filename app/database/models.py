@@ -15,7 +15,7 @@ class JobStatus(str, enum.Enum):
     DONE = "done"
     ERROR = "error"
 
-class TranscriptionJob(Base):
+class TranscriptionAndTranslationJob(Base):
     __tablename__ = "transcribe_and_translate"
     
     source_id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))

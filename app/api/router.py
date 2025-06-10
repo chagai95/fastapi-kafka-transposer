@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import uuid
 from app.database.db import get_db
-from app.database.models import TranscriptionJob, JobStatus
+from app.database.models import TranscriptionAndTranslationJob, JobStatus
 from app.schemas.request_schemas import (
     TranscribeVideoRequest, 
     GeneralTranscribeRequest,
@@ -27,7 +27,7 @@ async def transcribe_and_translate_video(
     source_id = str(uuid.uuid4())
     
     # Create new job
-    job = TranscriptionJob(
+    job = TranscriptionAndTranslationJob(
         source_id=source_id,
         source_type="peertube",
         url=str(request.url),
@@ -54,7 +54,7 @@ async def transcribe_and_translate_general(
     source_id = str(uuid.uuid4())
     
     # Create new job
-    job = TranscriptionJob(
+    job = TranscriptionAndTranslationJob(
         source_id=source_id,
         source_type="general",  # You'll need to add "general" to WORKFLOW_CONFIG
         url=str(request.url),
@@ -92,7 +92,7 @@ async def translate(
     source_id = str(uuid.uuid4())
     
     async with get_db() as db:
-        job = TranscriptionJob(
+        job = TranscriptionAndTranslationJob(
             source_id=source_id,
             source_type="translation_only",  # You'll need to add this to WORKFLOW_CONFIG
             url="direct_text",
@@ -113,7 +113,7 @@ async def translate(
 @router.get("/transcribe-and-translate/{source_id}/status", response_model=JobStatusResponse)
 async def get_job_status(source_id: str, db: AsyncSession = Depends(get_db)):
     """Get status of a transcription/translation job"""
-    stmt = select(TranscriptionJob).where(TranscriptionJob.source_id == source_id)
+    stmt = select(TranscriptionAndTranslationJob).where(TranscriptionAndTranslationJob.source_id == source_id)
     result = await db.execute(stmt)
     job = result.scalar_one_or_none()
     

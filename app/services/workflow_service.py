@@ -1,7 +1,7 @@
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.database.models import TranscriptionJob, JobStatus
+from app.database.models import TranscriptionAndTranslationJob, JobStatus
 from app.services.kafka_service import kafka_service
 from app.config import settings
 from app.database.db import async_session
@@ -12,7 +12,7 @@ class WorkflowService:
     def __init__(self):
         self.workflows = settings.WORKFLOW_CONFIG
         
-    async def start_job(self, session: AsyncSession, job: TranscriptionJob):
+    async def start_job(self, session: AsyncSession, job: TranscriptionAndTranslationJob):
         """Start a job by sending it to the first step in its workflow"""
         workflow = self.workflows.get(job.source_type)
         if not workflow:
@@ -36,7 +36,7 @@ class WorkflowService:
             
         async with async_session() as session:
             # Get the job
-            stmt = select(TranscriptionJob).where(TranscriptionJob.source_id == source_id)
+            stmt = select(TranscriptionAndTranslationJob).where(TranscriptionAndTranslationJob.source_id == source_id)
             result = await session.execute(stmt)
             job = result.scalar_one_or_none()
             
@@ -51,7 +51,7 @@ class WorkflowService:
             # Move to next step
             await self._advance_workflow(session, job)
     
-    async def _update_job_with_response(self, job: TranscriptionJob, data: dict):
+    async def _update_job_with_response(self, job: TranscriptionAndTranslationJob, data: dict):
         """Update job with response data based on what's in the response"""
         # Update transcription if present
         if "output" in data:
@@ -65,7 +65,7 @@ class WorkflowService:
             
         # You can add more response field mappings here as needed
         
-    async def _advance_workflow(self, session: AsyncSession, job: TranscriptionJob):
+    async def _advance_workflow(self, session: AsyncSession, job: TranscriptionAndTranslationJob):
         """Move job to next step in workflow"""
         workflow = self.workflows.get(job.source_type)
         if not workflow:
@@ -91,7 +91,7 @@ class WorkflowService:
         await self._send_to_step(job, next_step)
         logger.info(f"Advanced job {job.source_id} to step {next_step}")
     
-    async def _send_to_step(self, job: TranscriptionJob, step_index: int):
+    async def _send_to_step(self, job: TranscriptionAndTranslationJob, step_index: int):
         """Send job data to a specific workflow step"""
         workflow = self.workflows.get(job.source_type)
         if not workflow or step_index >= len(workflow["steps"]):
