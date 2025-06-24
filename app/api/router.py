@@ -24,6 +24,8 @@ async def transcribe_and_translate_video(
     db: AsyncSession = Depends(get_db)
 ):
     """Endpoint to transcribe and translate a PeerTube video"""
+    logger.info("/transcribe-and-translate/video called")
+
     source_id = str(uuid.uuid4())
     
     # Create new job
