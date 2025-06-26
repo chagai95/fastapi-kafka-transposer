@@ -1,6 +1,7 @@
-from sqlalchemy import Column, String, Text, ARRAY, JSON, DateTime, Enum, ForeignKey
+from sqlalchemy import Column, String, Text, ARRAY, JSON, DateTime, Enum, ForeignKey, Integer, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 import uuid
 import enum
 
@@ -14,6 +15,46 @@ class JobStatus(str, enum.Enum):
     IN_PROGRESS = "in_progress"
     DONE = "done"
     ERROR = "error"
+
+# New models for dynamic workflows
+class WorkflowConfiguration(Base):
+    __tablename__ = "workflow_configurations"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, unique=True, nullable=False)  # e.g., "peertube", "general", "translation_only"
+    description = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationship to workflow steps
+    steps = relationship("WorkflowStep", back_populates="workflow", cascade="all, delete-orphan")
+
+class WorkflowStep(Base):
+    __tablename__ = "workflow_steps"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    workflow_id = Column(String, ForeignKey("workflow_configurations.id"), nullable=False)
+    step_order = Column(Integer, nullable=False)  # 0, 1, 2, etc.
+    topic = Column(String, nullable=False)
+    response_topic = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    
+    # Relationship back to workflow
+    workflow = relationship("WorkflowConfiguration", back_populates="steps")
+
+class RouteConfiguration(Base):
+    __tablename__ = "route_configurations"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    route_path = Column(String, unique=True, nullable=False)  # e.g., "/transcribe-and-translate/video"
+    workflow_name = Column(String, nullable=False)  # Links to WorkflowConfiguration.name
+    required_parameters = Column(JSON, nullable=False)  # JSON schema for required parameters
+    optional_parameters = Column(JSON, nullable=True)  # JSON schema for optional parameters
+    description = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 class TranscriptionAndTranslationJob(Base):
     __tablename__ = "transcribe_and_translate"

@@ -3,18 +3,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database.models import TranscriptionAndTranslationJob, JobStatus
 from app.services.kafka_service import kafka_service
-from app.config import settings
+from app.services.workflow_db_service import workflow_db_service
 from app.database.db import async_session
 
 logger = logging.getLogger(__name__)
 
 class WorkflowService:
     def __init__(self):
-        self.workflows = settings.WORKFLOW_CONFIG
+        # Remove the static workflows - now loaded from database
+        pass
         
     async def start_job(self, session: AsyncSession, job: TranscriptionAndTranslationJob):
         """Start a job by sending it to the first step in its workflow"""
-        workflow = self.workflows.get(job.source_type)
+        workflow = await workflow_db_service.get_workflow_config(session, job.source_type)
         if not workflow:
             logger.error(f"No workflow found for source_type: {job.source_type}")
             job.source_status = JobStatus.ERROR
@@ -22,7 +23,7 @@ class WorkflowService:
             return
             
         # Send to first step
-        await self._send_to_step(job, 0)
+        await self._send_to_step(job, 0, workflow)
         logger.info(f"Started job {job.source_id} with workflow '{job.source_type}'")
     
     async def process_response(self, topic: str, data: dict):
@@ -67,9 +68,11 @@ class WorkflowService:
         
     async def _advance_workflow(self, session: AsyncSession, job: TranscriptionAndTranslationJob):
         """Move job to next step in workflow"""
-        workflow = self.workflows.get(job.source_type)
+        workflow = await workflow_db_service.get_workflow_config(session, job.source_type)
         if not workflow:
             logger.error(f"No workflow found for source_type: {job.source_type}")
+            job.source_status = JobStatus.ERROR
+            await session.commit()
             return
             
         current_step = int(job.workflow_step)
@@ -88,17 +91,17 @@ class WorkflowService:
         await session.commit()
         
         # Send to next step
-        await self._send_to_step(job, next_step)
+        await self._send_to_step(job, next_step, workflow)
         logger.info(f"Advanced job {job.source_id} to step {next_step}")
     
-    async def _send_to_step(self, job: TranscriptionAndTranslationJob, step_index: int):
+    async def _send_to_step(self, job: TranscriptionAndTranslationJob, step_index: int, workflow: dict):
         """Send job data to a specific workflow step"""
-        workflow = self.workflows.get(job.source_type)
-        if not workflow or step_index >= len(workflow["steps"]):
+        steps = workflow["steps"]
+        if step_index >= len(steps):
             logger.error(f"Invalid step {step_index} for workflow {job.source_type}")
             return
             
-        step = workflow["steps"][step_index]
+        step = steps[step_index]
         topic = step["topic"]
         
         # Only send the source_id - services can query the database for full data
@@ -109,15 +112,9 @@ class WorkflowService:
         await kafka_service.send_message(topic, message, key=job.source_id)
         logger.info(f"Sent job {job.source_id} to topic '{topic}' (step {step_index})")
     
-    def get_response_topics(self):
-        """Get all response topics from all workflows for consumer registration"""
-        response_topics = set()
-        for workflow_name, workflow in self.workflows.items():
-            for step in workflow["steps"]:
-                response_topic = step.get("response_topic")
-                if response_topic:
-                    response_topics.add(response_topic)
-        return list(response_topics)
+    async def get_response_topics(self, session: AsyncSession):
+        """Get all response topics from database workflows for consumer registration"""
+        return await workflow_db_service.get_all_response_topics(session)
 
 # Create global instance
 workflow_service = WorkflowService()
