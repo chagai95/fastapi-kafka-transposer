@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import uuid
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
 
 from app.database.db import get_db
 from app.database.models import TranscriptionAndTranslationJob, JobStatus
@@ -20,6 +20,8 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+from app.services.language_service import language_service
 
 async def validate_and_extract_parameters(request: Request, route_path: str, db: AsyncSession) -> Dict[str, Any]:
     """Validate request parameters against database configuration"""
@@ -50,6 +52,49 @@ async def validate_and_extract_parameters(request: Request, route_path: str, db:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid request format: {str(e)}"
+        )
+
+@router.get("/translation-targets")
+async def get_translation_targets(languageId: Optional[str] = Query(None), db: AsyncSession = Depends(get_db)):
+    """Get translation targets for languages"""
+    try:
+        # Get translation targets from database
+        translation_targets = await language_service.get_translation_targets(db)
+        
+        # If specific language requested, return just that target
+        if languageId:
+            if languageId not in translation_targets:
+                raise HTTPException(
+                    status_code=404, 
+                    detail=f"Language '{languageId}' not found"
+                )
+            return translation_targets[languageId]
+        
+        # Return all translation targets
+        return translation_targets
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error in get_translation_targets: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error retrieving translation targets"
+        )
+
+@router.get("/supported-languages")
+async def get_supported_languages(db: AsyncSession = Depends(get_db)):
+    """Get list of supported languages with their translation targets"""
+    try:
+        # Get languages from database in the expected format
+        supported_languages = await language_service.get_supported_languages_format(db)
+        return supported_languages
+        
+    except Exception as e:
+        logger.exception(f"Error in get_supported_languages: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error retrieving supported languages"
         )
 
 @router.post("/transcribe-and-translate/video")
@@ -172,17 +217,19 @@ async def translate(
                 detail="Missing required fields: source_language_id, target_language_ids, or input"
             )
         
-        # Validate languages against supported languages
-        if source_language not in settings.SUPPORTED_LANGUAGES:
+        # Validate languages against supported languages from database
+        language = await language_service.get_language_by_code(db, source_language)
+        if not language:
             raise HTTPException(status_code=400, detail="Unsupported source language")
             
         if isinstance(target_langs, str):
             target_langs = [target_langs]
             
         # Validate target languages
-        for lang in target_langs:
-            if lang not in settings.SUPPORTED_LANGUAGES:
-                raise HTTPException(status_code=400, detail=f"Unsupported target language: {lang}")
+        validation_results = await language_service.validate_language_codes(db, target_langs)
+        invalid_langs = [lang for lang, valid in validation_results.items() if not valid]
+        if invalid_langs:
+            raise HTTPException(status_code=400, detail=f"Unsupported target languages: {', '.join(invalid_langs)}")
         
         # Create a translation-only job
         source_id = str(uuid.uuid4())

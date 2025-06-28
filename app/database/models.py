@@ -16,6 +16,17 @@ class JobStatus(str, enum.Enum):
     DONE = "done"
     ERROR = "error"
 
+# New model for language configurations
+class Language(Base):
+    __tablename__ = "languages"
+    
+    code = Column(String, primary_key=True)  # e.g., "en", "de", "pt-pt"
+    name = Column(String, nullable=False)    # e.g., "English", "German"
+    translation_target = Column(String, nullable=False)  # "deepl" or "google_translate"
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
 # New models for dynamic workflows
 class WorkflowConfiguration(Base):
     __tablename__ = "workflow_configurations"

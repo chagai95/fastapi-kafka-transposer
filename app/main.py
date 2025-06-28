@@ -6,6 +6,7 @@ from app.api.router import router
 from app.database.db import create_tables, async_session
 from app.services.kafka_service import kafka_service
 from app.services.workflow_service import workflow_service
+from app.logging_config import setup_file_logging
 from app.config import settings
 
 # Configure logging
@@ -42,6 +43,9 @@ async def create_response_handler(topic: str):
 
 @app.on_event("startup")
 async def startup_event():
+    
+    setup_file_logging()
+    
     # Create database tables
     await create_tables()
     logger.info("Database tables created")

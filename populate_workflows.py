@@ -19,11 +19,11 @@ ROUTE_CONFIGS = {
         "workflow_name": "peertube",
         "description": "Transcribe and translate PeerTube videos",
         "required_parameters": {
+            "language": {"type": "string", "description": "Source language code"},
             "videoId": {"type": "string", "description": "PeerTube video ID"},
             "url": {"type": "string", "description": "Video URL"}
         },
         "optional_parameters": {
-            "language": {"type": "string", "description": "Source language code"},
             "peertubeInstanceBaseDomain": {"type": "string", "description": "PeerTube instance base domain"}
         }
     },
