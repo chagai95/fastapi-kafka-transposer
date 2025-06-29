@@ -237,10 +237,8 @@ async def translate(
         job = TranscriptionAndTranslationJob(
             source_id=source_id,
             source_type=workflow_name,  # Use workflow name from database
-            url="direct_text",
             language=source_language,
             target_language_ids=target_langs,
-            transcription=input_text,  # Set the input text as transcription
             source_status=JobStatus.IN_PROGRESS
         )
         
