@@ -38,16 +38,14 @@ ROUTE_CONFIGS = {
         }
     },
     "/translate": {
-        "workflow_name": "translation_only",
-        "description": "Translate text directly without transcription",
+        "workflow_name": "translation",
+        "description": "Translate plain text or formated texts for example: transcriptions",
         "required_parameters": {
             "input": {"type": "string", "description": "Text to translate"},
             "source_language_id": {"type": "string", "description": "Source language code"},
             "target_language_ids": {"type": "array", "description": "Target language codes"}
         },
-        "optional_parameters": {
-            "unique_hash": {"type": "string", "description": "Unique hash for the translation"}
-        }
+        "optional_parameters": {}
     }
 }
 

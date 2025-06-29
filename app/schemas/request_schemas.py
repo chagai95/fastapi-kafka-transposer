@@ -16,7 +16,6 @@ class TranslateRequest(BaseModel):
     input: str
     source_language_id: str
     target_language_ids: Union[List[str], str]
-    unique_hash: Optional[str] = None
 
 class JobStatusResponse(BaseModel):
     status: str

@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Workflow configuration - defines the flow of data through different services
+# Add this to the WORKFLOW_CONFIG in populate_workflows.py:
+
 WORKFLOW_CONFIG = {
     "peertube": {
         "steps": [
@@ -14,15 +16,9 @@ WORKFLOW_CONFIG = {
             {"topic": "chagai_peertube_transcribe_and_translate", "response_topic": "chagai_peertube_transcribe_and_translate_response"}
         ]
     },
-    "general": {
+    "translation": {
         "steps": [
-            {"topic": "whisper", "response_topic": "whisper_response"},
-            {"topic": "generic_translate", "response_topic": "generic_translate_response"}
-        ]
-    },
-    "translation_only": {
-        "steps": [
-            {"topic": "generic_translate", "response_topic": "generic_translate_response"}
+            {"topic": "chagai_generic_translate", "response_topic": "chagai_generic_translate_response"}
         ]
     }
 }
