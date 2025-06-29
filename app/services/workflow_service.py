@@ -7,6 +7,8 @@ from app.services.workflow_db_service import workflow_db_service
 from app.database.db import async_session
 from app.services.translation_response_handler import translation_response_handler
 
+import asyncio
+
 logger = logging.getLogger(__name__)
 
 class WorkflowService:
@@ -44,19 +46,55 @@ class WorkflowService:
             
             if translation_job:
                 # Handle translation job
-                if "translations" in data:
-                    translation_job.translations = data["translations"]
-                    translation_job.status = JobStatus.DONE
+                logger.info(f"Found translation job for {source_id}")
+                
+                # Check if the response indicates success
+                if data.get("success") and data.get("type") == "translations":
+                    logger.info(f"Translation service confirmed completion for {source_id}, fetching results from database")
+                    
+                    # Refresh the job from database to get the latest data (including translations)
+                    await session.refresh(translation_job)
+                    
+                    # Check if translations were actually stored in the database
+                    if translation_job.translations:
+                        translation_job.status = JobStatus.DONE
+                        await session.commit()
+                        
+                        # Send response back to waiting HTTP request
+                        response_data = {
+                            "source_id": source_id,
+                            "translations": translation_job.translations,
+                            "status": "completed"
+                        }
+                        
+                        await translation_response_handler.handle_response(source_id, response_data)
+                        logger.info(f"Translation job {source_id} completed with translations: {translation_job.translations}")
+                        return
+                    else:
+                        logger.error(f"Translation service confirmed success but no translations found in database for {source_id}")
+                        translation_job.status = JobStatus.ERROR
+                        await session.commit()
+                        
+                        # Send error response
+                        await translation_response_handler.handle_response(source_id, {
+                            "source_id": source_id,
+                            "error": "Translation completed but no results found in database",
+                            "status": "error"
+                        })
+                        return
+                else:
+                    # Translation failed
+                    logger.error(f"Translation service reported failure for {source_id}: {data}")
+                    translation_job.status = JobStatus.ERROR
                     await session.commit()
                     
-                    # Send response back to waiting HTTP request
+                    # Send error response
                     await translation_response_handler.handle_response(source_id, {
                         "source_id": source_id,
-                        "translations": data["translations"],
-                        "status": "completed"
+                        "error": f"Translation service error: {data.get('message', 'Unknown error')}",
+                        "status": "error"
                     })
-                    logger.info(f"Translation job {source_id} completed and response sent")
-                return
+                    return
             
             # If not a translation job, check transcription job
             stmt = select(TranscriptionAndTranslationJob).where(TranscriptionAndTranslationJob.source_id == source_id)
@@ -87,7 +125,7 @@ class WorkflowService:
         workflow = await workflow_db_service.get_workflow_config(session, "translation")
         if workflow and workflow["steps"]:
             topic = workflow["steps"][0]["topic"]
-            await kafka_service.send_message(topic, message, key=job.source_id)
+            asyncio.create_task(kafka_service.send_message(topic, message, key=job.source_id))
             logger.info(f"Sent translation job {job.source_id} to topic '{topic}'")
     
     async def _update_job_with_response(self, job: TranscriptionAndTranslationJob, data: dict):

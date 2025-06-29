@@ -29,32 +29,39 @@ class TranslationResponseHandler:
         """Register a new request and return a future for its response"""
         future = asyncio.Future()
         self._pending_requests[source_id] = future
-        logger.debug(f"Registered request {source_id}, waiting for response")
+        logger.info(f"Registered future for {source_id}. Total pending: {len(self._pending_requests)}")
+        logger.info(f"Current pending requests: {list(self._pending_requests.keys())}")
         return future
     
     async def handle_response(self, source_id: str, response_data: Dict[str, Any]):
         """Handle a response from Kafka and complete the future"""
+        logger.info(f"Handling response for {source_id}: {response_data}")
+        logger.info(f"Current pending requests: {list(self._pending_requests.keys())}")
+        
         future = self._pending_requests.pop(source_id, None)
         if future and not future.done():
             future.set_result(response_data)
-            logger.debug(f"Completed future for {source_id}")
+            logger.info(f"Successfully completed future for {source_id}")
         else:
-            logger.warning(f"No pending future found for {source_id}")
+            if future is None:
+                logger.error(f"No pending future found for {source_id}. Available: {list(self._pending_requests.keys())}")
+            elif future.done():
+                logger.warning(f"Future for {source_id} was already completed")
     
     async def wait_for_response(self, source_id: str, timeout: float = 30.0) -> Optional[Dict[str, Any]]:
         """Wait for a response with timeout"""
+        # This method shouldn't be used anymore - register_request should be called separately
+        logger.warning(f"wait_for_response called for {source_id} - this method is deprecated")
         future = self.register_request(source_id)
         try:
-            # Wait for the future to complete or timeout
             result = await asyncio.wait_for(future, timeout=timeout)
             return result
         except asyncio.TimeoutError:
             logger.warning(f"Timeout waiting for response for {source_id}")
-            # Remove from pending requests
             self._pending_requests.pop(source_id, None)
             return None
         except Exception as e:
-            logger.error(f"Error waiting for response: {e}")
+            logger.error(f"Error waiting for response for {source_id}: {e}")
             self._pending_requests.pop(source_id, None)
             raise
     

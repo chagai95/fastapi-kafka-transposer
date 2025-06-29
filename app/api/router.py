@@ -4,6 +4,7 @@ from sqlalchemy import select
 import uuid
 import logging
 from typing import Dict, Any, Optional, List
+import asyncio
 
 from app.database.db import get_db
 from app.database.models import TranslationJob, TranscriptionAndTranslationJob, JobStatus
@@ -235,6 +236,7 @@ async def translate(
         
         # Create a translation job
         source_id = str(uuid.uuid4())
+        logger.info(f"Created translation job with source_id: {source_id}")
         
         job = TranslationJob(
             source_id=source_id,
@@ -247,37 +249,62 @@ async def translate(
         
         db.add(job)
         await db.commit()
+        logger.info(f"Saved translation job to database: {source_id}")
         
         # If wait_for_result is False, return immediately with source_id
         if not wait_for_result:
-            # Start workflow
             await workflow_service.start_translation_job(db, job)
             return {"source_id": source_id}
         
-        # Otherwise, wait for the result
-        # Start workflow
+        # CRITICAL: Register the future BEFORE starting the workflow
+        logger.info(f"Registering future for {source_id} BEFORE starting workflow")
+        future = translation_response_handler.register_request(source_id)
+        
+        # Now start the workflow
         await workflow_service.start_translation_job(db, job)
+        logger.info(f"Started translation workflow for {source_id}, now waiting for response")
         
-        # Wait for the translation to complete
-        result = await translation_response_handler.wait_for_response(source_id, timeout=30.0)
-        
-        if result:
-            # Return the translations directly
-            return {
-                "source_id": source_id,
-                "translations": result.get("translations", {}),
-                "status": "completed"
-            }
-        else:
-            # If timeout or error, return partial result
+        # Wait for the future to complete
+        logger.info(f"About to wait for future {source_id}")
+        try:
+            logger.info(f"Calling asyncio.wait_for for {source_id}")
+            result = await asyncio.wait_for(future, timeout=30.0)
+            logger.info(f"asyncio.wait_for returned for {source_id}: {result}")
+            
+            if result:
+                logger.info(f"Returning translations for {source_id}")
+                return {
+                    "source_id": source_id,
+                    "translations": result.get("translations", {}),
+                    "status": "completed"
+                }
+            else:
+                logger.error(f"Empty result received for {source_id}")
+                return {
+                    "source_id": source_id,
+                    "status": "error",
+                    "error": "Empty result received"
+                }
+                
+        except asyncio.TimeoutError:
+            logger.warning(f"Timeout waiting for response for {source_id}")
+            # Remove from pending requests if it exists
+            translation_response_handler._pending_requests.pop(source_id, None)
+            
             # Re-fetch job to get any partial results
             await db.refresh(job)
-            
             return {
                 "source_id": source_id,
                 "status": job.status.value,
                 "translations": job.translations,
                 "message": "Translation is taking longer than expected. Use the status endpoint to check progress."
+            }
+        except Exception as e:
+            logger.exception(f"Exception in asyncio.wait_for for {source_id}: {str(e)}")
+            return {
+                "source_id": source_id,
+                "status": "error",
+                "error": f"Internal error: {str(e)}"
             }
         
     except HTTPException:
