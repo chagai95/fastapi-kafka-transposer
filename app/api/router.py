@@ -6,7 +6,7 @@ import logging
 from typing import Dict, Any, Optional, List
 
 from app.database.db import get_db
-from app.database.models import TranscriptionAndTranslationJob, JobStatus
+from app.database.models import TranslationJob, TranscriptionAndTranslationJob, JobStatus
 from app.schemas.request_schemas import (
     TranscribeVideoRequest, 
     GeneralTranscribeRequest,
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 from app.services.language_service import language_service
+from app.services.translation_response_handler import translation_response_handler
 
 async def validate_and_extract_parameters(request: Request, route_path: str, db: AsyncSession) -> Dict[str, Any]:
     """Validate request parameters against database configuration"""
@@ -192,7 +193,8 @@ async def transcribe_and_translate_general(
 @router.post("/translate")
 async def translate(
     request: Request,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    wait_for_result: bool = Query(True, description="Wait for translation result or return immediately with source_id")
 ):
     """Endpoint to translate text directly"""
     logger.info("/translate called")
@@ -231,24 +233,52 @@ async def translate(
         if invalid_langs:
             raise HTTPException(status_code=400, detail=f"Unsupported target languages: {', '.join(invalid_langs)}")
         
-        # Create a translation-only job
+        # Create a translation job
         source_id = str(uuid.uuid4())
         
-        job = TranscriptionAndTranslationJob(
+        job = TranslationJob(
             source_id=source_id,
-            source_type=workflow_name,  # Use workflow name from database
-            language=source_language,
+            source_type=workflow_name,
+            source_language=source_language,
             target_language_ids=target_langs,
-            source_status=JobStatus.IN_PROGRESS
+            input_text=input_text,
+            status=JobStatus.IN_PROGRESS
         )
         
         db.add(job)
         await db.commit()
         
-        # Start workflow
-        await workflow_service.start_job(db, job)
+        # If wait_for_result is False, return immediately with source_id
+        if not wait_for_result:
+            # Start workflow
+            await workflow_service.start_translation_job(db, job)
+            return {"source_id": source_id}
         
-        return {"source_id": source_id}
+        # Otherwise, wait for the result
+        # Start workflow
+        await workflow_service.start_translation_job(db, job)
+        
+        # Wait for the translation to complete
+        result = await translation_response_handler.wait_for_response(source_id, timeout=30.0)
+        
+        if result:
+            # Return the translations directly
+            return {
+                "source_id": source_id,
+                "translations": result.get("translations", {}),
+                "status": "completed"
+            }
+        else:
+            # If timeout or error, return partial result
+            # Re-fetch job to get any partial results
+            await db.refresh(job)
+            
+            return {
+                "source_id": source_id,
+                "status": job.status.value,
+                "translations": job.translations,
+                "message": "Translation is taking longer than expected. Use the status endpoint to check progress."
+            }
         
     except HTTPException:
         raise

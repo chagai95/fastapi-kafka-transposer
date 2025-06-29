@@ -8,3 +8,8 @@ app/schemas/__pycache__/request_schemas.cpython-312.pyc
 app/services/__pycache__/workflow_db_service.cpython-312.pyc
 app/services/__pycache__/workflow_service.cpython-312.pyc
 app/services/__pycache__/language_service.cpython-312.pyc
+app/database/__pycache__/db.cpython-312.pyc
+app/database/__pycache__/models.cpython-312.pyc
+app/services/__pycache__/kafka_service.cpython-312.pyc
+app/services/__pycache__/translation_response_handler.cpython-312.pyc
+app/__pycache__/logging_config.cpython-312.pyc

@@ -66,6 +66,35 @@ class RouteConfiguration(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+# Add this to app/database/models.py
+
+class TranslationJob(Base):
+    __tablename__ = "translation_jobs"
+    
+    source_id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    source_type = Column(String, nullable=False, default="translation")
+    source_language = Column(String, nullable=False)
+    target_language_ids = Column(ARRAY(String), nullable=False)
+    input_text = Column(Text, nullable=False)
+    translations = Column(JSON, nullable=True)  # {"es": "Hola", "fr": "Bonjour"}
+    status = Column(Enum(JobStatus), default=JobStatus.IN_PROGRESS)
+    workflow_step = Column(String, default="0")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    def to_dict(self):
+        return {
+            "source_id": self.source_id,
+            "source_type": self.source_type,
+            "source_language": self.source_language,
+            "target_language_ids": self.target_language_ids,
+            "input_text": self.input_text,
+            "translations": self.translations,
+            "status": self.status,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at
+        }
 
 class TranscriptionAndTranslationJob(Base):
     __tablename__ = "transcribe_and_translate"

@@ -8,6 +8,7 @@ from app.services.kafka_service import kafka_service
 from app.services.workflow_service import workflow_service
 from app.logging_config import setup_file_logging
 from app.config import settings
+from app.services.translation_response_handler import translation_response_handler
 
 # Configure logging
 logging.basicConfig(
@@ -53,6 +54,10 @@ async def startup_event():
     # Start Kafka producer
     await kafka_service.start_producer()
     
+    # Start translation response handler
+    await translation_response_handler.start()
+    logger.info("Translation response handler started")
+    
     # Load response topics from database workflows
     async with async_session() as session:
         try:
@@ -74,6 +79,8 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
+    # Stop translation response handler
+    await translation_response_handler.stop()
     # Stop Kafka consumers and producer
     await kafka_service.stop_all_consumers()
     await kafka_service.stop_producer()

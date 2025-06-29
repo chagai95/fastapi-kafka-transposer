@@ -1,10 +1,11 @@
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.database.models import TranscriptionAndTranslationJob, JobStatus
+from app.database.models import TranscriptionAndTranslationJob, TranslationJob, JobStatus
 from app.services.kafka_service import kafka_service
 from app.services.workflow_db_service import workflow_db_service
 from app.database.db import async_session
+from app.services.translation_response_handler import translation_response_handler
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,28 @@ class WorkflowService:
             return
             
         async with async_session() as session:
-            # Get the job
+            # First try to find a translation job
+            stmt = select(TranslationJob).where(TranslationJob.source_id == source_id)
+            result = await session.execute(stmt)
+            translation_job = result.scalar_one_or_none()
+            
+            if translation_job:
+                # Handle translation job
+                if "translations" in data:
+                    translation_job.translations = data["translations"]
+                    translation_job.status = JobStatus.DONE
+                    await session.commit()
+                    
+                    # Send response back to waiting HTTP request
+                    await translation_response_handler.handle_response(source_id, {
+                        "source_id": source_id,
+                        "translations": data["translations"],
+                        "status": "completed"
+                    })
+                    logger.info(f"Translation job {source_id} completed and response sent")
+                return
+            
+            # If not a translation job, check transcription job
             stmt = select(TranscriptionAndTranslationJob).where(TranscriptionAndTranslationJob.source_id == source_id)
             result = await session.execute(stmt)
             job = result.scalar_one_or_none()
@@ -45,12 +67,28 @@ class WorkflowService:
                 logger.error(f"Job not found for source_id: {source_id}")
                 return
             
-            # Update job with response data
+            # Handle transcription job as before
             await self._update_job_with_response(job, data)
             await session.commit()
-            
-            # Move to next step
             await self._advance_workflow(session, job)
+
+    # Add a new method to start translation jobs
+    async def start_translation_job(self, session: AsyncSession, job: TranslationJob):
+        """Start a translation-only job"""
+        # Send to translation service
+        message = {
+            "source_id": job.source_id,
+            "input": job.input_text,
+            "source_language": job.source_language,
+            "target_languages": job.target_language_ids
+        }
+        
+        # Get the translation topic from workflow config
+        workflow = await workflow_db_service.get_workflow_config(session, "translation")
+        if workflow and workflow["steps"]:
+            topic = workflow["steps"][0]["topic"]
+            await kafka_service.send_message(topic, message, key=job.source_id)
+            logger.info(f"Sent translation job {job.source_id} to topic '{topic}'")
     
     async def _update_job_with_response(self, job: TranscriptionAndTranslationJob, data: dict):
         """Update job with response data based on what's in the response"""
