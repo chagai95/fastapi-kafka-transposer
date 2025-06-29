@@ -1,10 +1,10 @@
 app/logs/
 *.log
 venv/
-app/api/__pycache__/router.cpython-312.pyc
+app/__pycache__/config.cpython-312.pyc
 app/__pycache__/main.cpython-312.pyc
+app/api/__pycache__/router.cpython-312.pyc
+app/schemas/__pycache__/request_schemas.cpython-312.pyc
 app/services/__pycache__/workflow_db_service.cpython-312.pyc
 app/services/__pycache__/workflow_service.cpython-312.pyc
 app/services/__pycache__/language_service.cpython-312.pyc
-app/__pycache__/config.cpython-312.pyc
-app/schemas/__pycache__/request_schemas.cpython-312.pyc
