@@ -244,7 +244,7 @@ async def translate(
             source_language=source_language,
             target_language_ids=target_langs,
             input_text=input_text,
-            format=params.get("format"),  # Save format parameter
+            format=params.get("format", "text"),  # Default to "text" instead of None
             status=JobStatus.IN_PROGRESS
         )
         
