@@ -214,25 +214,34 @@ async def translate(
         target_langs = params.get("target_language_ids")
         input_text = params.get("input")
         
-        if not source_language or not target_langs or not input_text:
+        # Check required fields
+        if not source_language or not input_text:
             raise HTTPException(
                 status_code=400,
-                detail="Missing required fields: source_language_id, target_language_ids, or input"
+                detail="Missing required fields: source_language_id or input"
             )
         
-        # Validate languages against supported languages from database
+        # Validate source language
         language = await language_service.get_language_by_code(db, source_language)
         if not language:
             raise HTTPException(status_code=400, detail="Unsupported source language")
+        
+        # Handle optional target_language_ids
+        if target_langs is None:
+            # If no target languages specified, default to all supported languages
+            all_languages = await language_service.get_all_languages(db)
+            target_langs = [lang.code for lang in all_languages]
+            logger.info(f"No target languages specified, defaulting to all languages: {target_langs}")
+        else:
+            # Ensure target_langs is a list
+            if isinstance(target_langs, str):
+                target_langs = [target_langs]
             
-        if isinstance(target_langs, str):
-            target_langs = [target_langs]
-            
-        # Validate target languages
-        validation_results = await language_service.validate_language_codes(db, target_langs)
-        invalid_langs = [lang for lang, valid in validation_results.items() if not valid]
-        if invalid_langs:
-            raise HTTPException(status_code=400, detail=f"Unsupported target languages: {', '.join(invalid_langs)}")
+            # Validate target languages
+            validation_results = await language_service.validate_language_codes(db, target_langs)
+            invalid_langs = [lang for lang, valid in validation_results.items() if not valid]
+            if invalid_langs:
+                raise HTTPException(status_code=400, detail=f"Unsupported target languages: {', '.join(invalid_langs)}")
         
         # Create a translation job
         source_id = str(uuid.uuid4())
@@ -250,7 +259,7 @@ async def translate(
         
         db.add(job)
         await db.commit()
-        logger.info(f"Saved translation job to database: {source_id}")
+        logger.info(f"Saved translation job to database: {source_id} with target languages: {target_langs}")
         
         # If wait_for_result is False, return immediately with source_id
         if not wait_for_result:
