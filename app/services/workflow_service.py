@@ -110,7 +110,6 @@ class WorkflowService:
             await session.commit()
             await self._advance_workflow(session, job)
 
-    # Add a new method to start translation jobs
     async def start_translation_job(self, session: AsyncSession, job: TranslationJob):
         """Start a translation-only job"""
         # Send to translation service
@@ -118,7 +117,8 @@ class WorkflowService:
             "source_id": job.source_id,
             "input": job.input_text,
             "source_language": job.source_language,
-            "target_languages": job.target_language_ids
+            "target_languages": job.target_language_ids,
+            "format": job.format  # Include format in the message
         }
         
         # Get the translation topic from workflow config
@@ -126,7 +126,7 @@ class WorkflowService:
         if workflow and workflow["steps"]:
             topic = workflow["steps"][0]["topic"]
             asyncio.create_task(kafka_service.send_message(topic, message, key=job.source_id))
-            logger.info(f"Sent translation job {job.source_id} to topic '{topic}'")
+            logger.info(f"Sent translation job {job.source_id} to topic '{topic}' with format: {job.format}")
     
     async def _update_job_with_response(self, job: TranscriptionAndTranslationJob, data: dict):
         """Update job with response data based on what's in the response"""

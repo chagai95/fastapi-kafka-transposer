@@ -45,7 +45,9 @@ ROUTE_CONFIGS = {
             "source_language_id": {"type": "string", "description": "Source language code"},
             "target_language_ids": {"type": "array", "description": "Target language codes"}
         },
-        "optional_parameters": {}
+        "optional_parameters": {
+            "format": {"type": "string", "description": "Format of the text (e.g., 'plain', 'json', 'srt')"}
+        }
     }
 }
 

@@ -77,6 +77,7 @@ class TranslationJob(Base):
     source_language = Column(String, nullable=False)
     target_language_ids = Column(ARRAY(String), nullable=False)
     input_text = Column(Text, nullable=False)
+    format = Column(String, nullable=True)  # Added format field
     translations = Column(JSON, nullable=True)  # {"es": "Hola", "fr": "Bonjour"}
     status = Column(Enum(JobStatus), default=JobStatus.IN_PROGRESS)
     workflow_step = Column(String, default="0")
@@ -90,6 +91,7 @@ class TranslationJob(Base):
             "source_language": self.source_language,
             "target_language_ids": self.target_language_ids,
             "input_text": self.input_text,
+            "format": self.format,
             "translations": self.translations,
             "status": self.status,
             "created_at": self.created_at,
